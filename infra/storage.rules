@@ -1,0 +1,14 @@
+# Storage access notes (GCS uses IAM, not a rules file like Firestore)
+#
+# The bucket itself has NO public access. All access goes through:
+#   1. The Cloud Functions runtime service account (roles/storage.objectAdmin)
+#   2. Short-lived signed URLs issued by getUploadUrl / getDownloadUrl
+#
+# The plugin never receives long-lived credentials — only a signed URL
+# scoped to one object, valid for ~15 minutes. This is the key security
+# property worth calling out in a writeup: the client is never trusted
+# with bucket-wide access.
+#
+# If you outgrow this model (e.g. add real multi-user auth), revisit with:
+#   gsutil iam ch <principal>:objectViewer gs://$BUCKET_NAME
+# scoped per-user via IAM conditions, rather than broad grants.

@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// NOTE: v1 assumes a single trusted user (you) authenticating via a device
+// token issued out-of-band (see docs/architecture.md). If you later add
+// Firebase Auth for multi-user support, replace `isAuthorizedDevice()` with
+// a request.auth.uid check.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthorizedDevice() {
+      // Placeholder: Cloud Functions write with the service account and
+      // bypass these rules entirely (admin SDK). These rules only matter
+      // if you ever let the plugin read Firestore directly instead of
+      // going through getChanges. Left permissive-but-documented for now.
+      return true;
+    }
+
+    match /files/{fileId} {
+      allow read: if isAuthorizedDevice();
+      allow write: if false; // writes only happen server-side via Cloud Functions
+    }
+
+    match /devices/{deviceId} {
+      allow read: if isAuthorizedDevice();
+      allow write: if false;
+    }
+  }
+}
