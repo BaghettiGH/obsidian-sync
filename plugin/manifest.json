@@ -1,0 +1,11 @@
+{
+	"id": "obsidian-sync",
+	"name": "Obsidian Sync (Custom)",
+	"version": "0.1.0",
+	"minAppVersion": "1.4.0",
+	"description": "Custom GCP-backed sync for your vault.",
+	"author": "BaghettiGH",
+	"authorUrl": "",
+	"fundingUrl": "",
+	"isDesktopOnly": false
+}
