@@ -3,7 +3,7 @@ import { ObsidianSyncSettingTab } from './settings';
 import { DEFAULT_SETTINGS, ObsidianSyncSettings } from './types';
 
 export default class ObsidianSyncPlugin extends Plugin {
-	settings: ObsidianSyncSettings;
+	settings!: ObsidianSyncSettings;
 
 	async onload() {
 		await this.loadSettings();
