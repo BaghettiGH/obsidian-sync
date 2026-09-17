@@ -1,6 +1,9 @@
 import { Plugin } from 'obsidian';
 import { ObsidianSyncSettingTab } from './settings';
 import { DEFAULT_SETTINGS, ObsidianSyncSettings } from './types';
+import { FileWatcher, FileChangeEvent } from './sync/fileWatcher';
+import { SyncManager } from './sync/syncManager';
+import { SyncApiClient } from './api';
 
 export default class ObsidianSyncPlugin extends Plugin {
 	settings!: ObsidianSyncSettings;
@@ -8,6 +11,16 @@ export default class ObsidianSyncPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 		this.addSettingTab(new ObsidianSyncSettingTab(this.app, this));
+
+		const api = new SyncApiClient(this.settings);
+		const syncManager = new SyncManager(this.app.vault, api);
+
+		const watcher = new FileWatcher(this.app.vault, (event: FileChangeEvent) => {
+			console.log('obsidian-sync: file event', event.type, event.path);
+			syncManager.handleEvent(event);
+		});
+		watcher.register((eventRef) => this.registerEvent(eventRef));
+
 		console.log('obsidian-sync: loaded, settings =', {
 			backendUrl: this.settings.backendUrl,
 			deviceId: this.settings.deviceId,
@@ -24,6 +37,6 @@ export default class ObsidianSyncPlugin extends Plugin {
 	}
 
 	async saveSettings() {
-		await this.saveData(this.settings);
+		await this.saveData(this.settings)
 	}
 }
