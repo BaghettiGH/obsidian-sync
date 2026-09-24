@@ -3,7 +3,10 @@ import { ObsidianSyncSettingTab } from './settings';
 import { DEFAULT_SETTINGS, ObsidianSyncSettings } from './types';
 import { FileWatcher, FileChangeEvent } from './sync/fileWatcher';
 import { SyncManager } from './sync/syncManager';
+import { PullManager } from './sync/pullManager';
 import { SyncApiClient } from './api';
+
+const PULL_INTERVAL_MS = 30 * 1000;
 
 export default class ObsidianSyncPlugin extends Plugin {
 	settings!: ObsidianSyncSettings;
@@ -20,6 +23,21 @@ export default class ObsidianSyncPlugin extends Plugin {
 			syncManager.handleEvent(event);
 		});
 		watcher.register((eventRef) => this.registerEvent(eventRef));
+
+		const pullManager = new PullManager(
+			this.app.vault,
+			api,
+			watcher,
+			this.settings,
+			() => this.saveSettings()
+		);
+
+		pullManager.pull().catch((err) => console.error('obsidian-sync: initial pull failed', err));
+		this.registerInterval(
+			window.setInterval(() => {
+				pullManager.pull().catch((err) => console.error('obsidian-sync: pull failed', err));
+			}, PULL_INTERVAL_MS)
+		);
 
 		console.log('obsidian-sync: loaded, settings =', {
 			backendUrl: this.settings.backendUrl,
