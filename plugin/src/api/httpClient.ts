@@ -19,7 +19,7 @@ export class HttpClient {
 			body: JSON.stringify(body),
 		});
 
-		if (!res.ok) {
+		if (!res.ok && res.status !== 409) {
 			throw new Error(`${endpoint} failed: ${res.status} ${await res.text()}`);
 		}
 
