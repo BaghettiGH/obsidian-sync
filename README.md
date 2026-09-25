@@ -39,6 +39,3 @@ New-Item -ItemType Directory -Path "C:\path\to\your-test-vault\.obsidian\plugins
 New-Item -ItemType SymbolicLink -Path "C:\path\to\your-test-vault\.obsidian\plugins\obsidian-sync" -Target "C:\path\to\obsidian-sync\plugin"
 
 ```
-
-
-## Initialization
