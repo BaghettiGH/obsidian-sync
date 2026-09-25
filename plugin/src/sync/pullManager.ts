@@ -45,7 +45,7 @@ export class PullManager {
 				if (change.deleted) {
 					await this.applyDelete(change.path);
 				} else {
-					await this.applyChange(change.path);
+					await this.applyChange(change.path, change.version);
 				}
 			} catch (err) {
 				console.error(`obsidian-sync: failed to apply change for ${change.path}`, err);
@@ -58,7 +58,7 @@ export class PullManager {
 		await this.saveSettings();
 	}
 
-	private async applyChange(path: string): Promise<void> {
+	private async applyChange(path: string, version: number): Promise<void> {
 		const { downloadUrl } = await this.api.getDownloadUrl(path);
 		const content = await this.api.downloadFromSignedUrl(downloadUrl);
 
@@ -73,6 +73,9 @@ export class PullManager {
 			await this.ensureParentFolders(normalizedPath);
 			await this.vault.createBinary(normalizedPath, content);
 		}
+
+		this.settings.fileVersions[normalizedPath] = version;
+		await this.saveSettings();
 
 		console.log(`obsidian-sync: pulled ${normalizedPath}`);
 	}

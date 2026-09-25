@@ -2,6 +2,8 @@ import { Vault } from 'obsidian';
 import { SyncApiClient } from '../api';
 import { hashContent } from './hasher';
 import type { FileChangeEvent } from './fileWatcher';
+import type { FileWatcher }	from './fileWatcher';
+import type { ObsidianSyncSettings } from '../types';
 
 /**
  * Orchestrates the push side of sync: file change event -> hash -> upload.
@@ -11,12 +13,25 @@ import type { FileChangeEvent } from './fileWatcher';
 export class SyncManager {
 	private vault: Vault;
 	private api: SyncApiClient;
+	private watcher: FileWatcher;
+	private settings: ObsidianSyncSettings;
+	private saveSettings: () => Promise<void>;
 	private debounceMs: number;
 	private pendingTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
-	constructor(vault: Vault, api: SyncApiClient, debounceMs = 2000) {
+	constructor(
+		vault: Vault,
+		api: SyncApiClient,
+		watcher: FileWatcher,
+		settings: ObsidianSyncSettings,
+		saveSettings: () => Promise<void>,
+		debounceMs = 2000
+	) {
 		this.vault = vault;
 		this.api = api;
+		this.watcher = watcher;
+		this.settings = settings;
+		this.saveSettings = saveSettings;
 		this.debounceMs = debounceMs;
 	}
 
@@ -69,19 +84,64 @@ export class SyncManager {
 		const content = await this.vault.readBinary(file);
 		const hash = await hashContent(content);
 
-		const uploadUrlResponse = await this.api.getUploadUrl(path, hash);
+		const response = await this.api.getUploadUrl(path, hash);
 
-		if (uploadUrlResponse.noop) {
-			console.log(`obsidian-sync: ${path} unchanged (${uploadUrlResponse.reason})`);
+		if (response.noop) {
+			console.log(`obsidian-sync: ${path} unchanged (${response.reason})`);
 			return;
 		}
 
-		if (!uploadUrlResponse.uploadUrl) {
+		if (response.conflict) {
+			await this.handleConflict(path, content, response);
+			return;
+		}
+
+		if (!response.uploadUrl) {
 			throw new Error(`getUploadUrl returned no uploadUrl for ${path}`);
 		}
 
-		await this.api.uploadToSignedUrl(uploadUrlResponse.uploadUrl, content, path, hash);
+		await this.api.uploadToSignedUrl(response.uploadUrl, content, path, hash);
+		const priorVersion = this.settings.fileVersions[path] ?? 0;
+		this.settings.fileVersions[path] = priorVersion + 1;
+		await this.saveSettings();
 		console.log(`obsidian-sync: uploaded ${path}`);
+	}
+	private async handleConflict(
+		path: string,
+		localContent: ArrayBuffer,
+		response: { currentVersion?: number; currentModifiedBy?: string }
+	): Promise<void> {
+		console.warn(
+			`obsidian-sync: conflict on ${path} (last modified by ${response.currentModifiedBy})`
+		);
+
+		// Pull down the version that won the race.
+		const { downloadUrl } = await this.api.getDownloadUrl(path);
+		const remoteContent = await this.api.downloadFromSignedUrl(downloadUrl);
+
+		const conflictPath = buildConflictCopyPath(path, this.settings.deviceId);
+
+		// Save our local edit under a new name so nothing is lost.
+		this.watcher.suppressNextEvent(conflictPath);
+		await this.vault.createBinary(conflictPath, localContent);
+
+		// Overwrite the local file with the version that actually won,
+		// so the vault matches the server's source of truth.
+		const file = this.vault.getFileByPath(path);
+		if (file) {
+			this.watcher.suppressNextEvent(path);
+			await this.vault.modifyBinary(file, remoteContent);
+		}
+
+		if (response.currentVersion !== undefined) {
+			this.settings.fileVersions[path] = response.currentVersion;
+		}
+		await this.saveSettings();
+
+		console.warn(
+			`obsidian-sync: conflict resolved -- your edit saved as ${conflictPath}, ` +
+				`${path} now matches the server`
+		);
 	}
 
 	private async handleDelete(path: string): Promise<void> {
@@ -93,9 +153,20 @@ export class SyncManager {
 
 		try {
 			await this.api.deleteFile(path);
+			delete this.settings.fileVersions[path];
+			await this.saveSettings();
 			console.log(`obsidian-sync: tombstoned ${path}`);
 		} catch (err) {
 			console.error(`obsidian-sync: delete failed for ${path}`, err);
 		}
 	}
+
+}
+
+function buildConflictCopyPath(path: string, deviceId: string): string {
+	const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+	const dotIndex = path.lastIndexOf('.');
+	const ext = dotIndex !== -1 ? path.slice(dotIndex) : '';
+	const base = dotIndex !== -1 ? path.slice(0, dotIndex) : path;
+	return `${base} (conflict copy, ${deviceId}, ${timestamp})${ext}`;
 }

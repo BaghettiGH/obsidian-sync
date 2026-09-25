@@ -3,6 +3,7 @@ export interface ObsidianSyncSettings {
     deviceToken: string;
     deviceId: string;
     lastSyncedAt: string | null;
+    fileVersions: Record<string, number>;
 }
 
 export const DEFAULT_SETTINGS: ObsidianSyncSettings = {
@@ -10,4 +11,5 @@ export const DEFAULT_SETTINGS: ObsidianSyncSettings = {
     deviceToken: '',
     deviceId: '',
     lastSyncedAt: null,
+    fileVersions: {},
 };

@@ -8,9 +8,11 @@ export async function getUploadUrl(
 	path: string,
 	hash: string
 ): Promise<GetUploadUrlResponse> {
+	const baseVersion = settings.fileVersions[path] ?? 0;
 	return http.post<GetUploadUrlResponse>('/getUploadUrl', {
 		path,
 		hash,
 		deviceId: settings.deviceId,
+		baseVersion,
 	});
 }

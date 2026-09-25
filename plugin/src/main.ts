@@ -16,12 +16,12 @@ export default class ObsidianSyncPlugin extends Plugin {
 		this.addSettingTab(new ObsidianSyncSettingTab(this.app, this));
 
 		const api = new SyncApiClient(this.settings);
-		const syncManager = new SyncManager(this.app.vault, api);
-
+		
 		const watcher = new FileWatcher(this.app.vault, (event: FileChangeEvent) => {
 			console.log('obsidian-sync: file event', event.type, event.path);
 			syncManager.handleEvent(event);
 		});
+		const syncManager = new SyncManager(this.app.vault, api, watcher, this.settings, () => this.saveSettings());
 		watcher.register((eventRef) => this.registerEvent(eventRef));
 
 		const pullManager = new PullManager(

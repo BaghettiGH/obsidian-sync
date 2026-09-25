@@ -3,6 +3,10 @@ export interface GetUploadUrlResponse {
 	reason?: string;
 	uploadUrl?: string;
 	objectPath?: string;
+	conflict?: boolean;
+	currentVersion?: number;
+	currentHash?: string;
+	currentModifiedBy?: string;
 }
 
 export interface GetDownloadUrlResponse {
