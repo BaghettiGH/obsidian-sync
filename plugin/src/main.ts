@@ -1,10 +1,11 @@
-import { Plugin } from 'obsidian';
+import { Notice, Platform, Plugin } from 'obsidian';
 import { ObsidianSyncSettingTab } from './settings';
 import { DEFAULT_SETTINGS, ObsidianSyncSettings } from './types';
 import { FileWatcher, FileChangeEvent } from './sync/fileWatcher';
 import { SyncManager } from './sync/syncManager';
 import { PullManager } from './sync/pullManager';
 import { SyncApiClient } from './api';
+import { FullPush } from './sync/fullPush';
 
 const PULL_INTERVAL_MS = 30 * 1000;
 
@@ -32,12 +33,49 @@ export default class ObsidianSyncPlugin extends Plugin {
 			() => this.saveSettings()
 		);
 
-		pullManager.pull().catch((err) => console.error('obsidian-sync: initial pull failed', err));
-		this.registerInterval(
-			window.setInterval(() => {
-				pullManager.pull().catch((err) => console.error('obsidian-sync: pull failed', err));
-			}, PULL_INTERVAL_MS)
+		const fullPush = new FullPush(
+			this.app.vault,
+			syncManager,
+			this.settings,
+			() => this.saveSettings()
 		);
+
+		let syncing = false;
+		const syncNow = async () => {
+			if (syncing) return; // don't overlap with a sync already running
+			syncing = true;
+			new Notice('Syncing…');
+			try {
+				const result = await fullPush.run(); // push first, so conflicts are detected
+				await pullManager.pull();
+				new Notice(
+					result.failed > 0
+						? `Sync finished with ${result.failed} failed file(s), see console`
+						: 'Sync complete'
+				);
+			} catch (err) {
+				console.error('obsidian-sync: sync failed', err);
+				new Notice('Sync failed, see console');
+			} finally {
+				syncing = false;
+			}
+		};
+
+		this.addRibbonIcon('refresh-cw', 'Sync now', syncNow);
+		this.addCommand({ id: 'sync-now', name: 'Sync now', callback: syncNow });
+
+
+		if (Platform.isMobile) {
+
+			this. app.workspace.onLayoutReady(syncNow);
+		} else {
+			pullManager.pull().catch((err) => console.error('obsidian-sync: initial pull failed', err));
+			this.registerInterval(
+				window.setInterval(() => {
+					pullManager.pull().catch((err) => console.error('obsidian-sync: pull failed', err));
+				}, PULL_INTERVAL_MS)
+			);
+		}
 
 		console.log('obsidian-sync: loaded, settings =', {
 			backendUrl: this.settings.backendUrl,

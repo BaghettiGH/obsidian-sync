@@ -90,6 +90,8 @@ export class PullManager {
 			console.log(`obsidian-sync: deleted locally ${normalizedPath}`);
 		}
 		// If it doesn't exist locally, nothing to do -- already in sync.
+		delete this.settings.fileVersions[normalizedPath];
+		await this.saveSettings();
 	}
 
 	private async ensureParentFolders(path: string): Promise<void> {

@@ -13,6 +13,7 @@ import type { ObsidianSyncSettings } from '../types';
  */
 export class SyncManager {
 	private scheduler: UploadScheduler;
+	private uploader: Uploader;
 
 	constructor(
 		vault: Vault,
@@ -25,6 +26,7 @@ export class SyncManager {
 		const conflicts = new ConflictResolver(vault, api, watcher, settings, saveSettings);
 		const uploader = new Uploader(vault, api, settings, saveSettings, conflicts);
 		this.scheduler = new UploadScheduler(debounceMs, (path) => uploader.upload(path));
+		this.uploader = new Uploader(vault, api, settings, saveSettings, conflicts);
 	}
 
 	handleEvent(event: FileChangeEvent): void {
@@ -46,6 +48,16 @@ export class SyncManager {
 				this.scheduler.schedule(event.path);
 				break;
 		}
+	}
+
+	async uploadNow(path: string): Promise<void> {
+	this.scheduler.cancel(path);
+	await this.uploader.upload(path);
+	}
+
+	/** Tombstone immediately. Used by manual sync. */
+	async deleteNow(path: string): Promise<void> {
+		await this.handleDelete(path);
 	}
 
 	private async handleDelete(path: string): Promise<void> {
