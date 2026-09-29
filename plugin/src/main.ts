@@ -55,7 +55,8 @@ export default class ObsidianSyncPlugin extends Plugin {
 				);
 			} catch (err) {
 				console.error('obsidian-sync: sync failed', err);
-				new Notice('Sync failed, see console');
+				const message = err instanceof Error ? err.message : String(err);
+				new Notice(`Sync failed: ${message}`, 8000);
 			} finally {
 				syncing = false;
 			}
