@@ -31,7 +31,9 @@ export class FullPush {
 				await this.sync.uploadNow(file.path);
 			} catch (err) {
 				failed++;
-				console.error(`obsidian-sync: push failed for ${file.path}`, err);
+                const message = err instanceof Error ? err.message : String(err);
+                console.error(`obsidian-sync: push failed for ${file.path}: ${message}`, err);
+				throw new Error(`push failed for "${file.path}": ${message}`);
 			}
 		}
 
